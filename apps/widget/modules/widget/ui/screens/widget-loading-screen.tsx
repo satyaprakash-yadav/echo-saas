@@ -2,7 +2,7 @@
 
 import { useAtomValue, useSetAtom } from "jotai";
 import { LoaderIcon } from "lucide-react";
-import { contactSessionIdAtomFamily, errorMessageAtom, loadingMessageAtom, organizationIdAtom, screenAtom, widgetSettingsAtom } from "@/modules/widget/atoms/widget-atoms";
+import { contactSessionIdAtomFamily, errorMessageAtom, loadingMessageAtom, organizationIdAtom, screenAtom, vapiSecretsAtom, widgetSettingsAtom } from "@/modules/widget/atoms/widget-atoms";
 import { WidgetHeader } from "@/modules/widget/ui/components/widget-header";
 import { useEffect, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -24,6 +24,7 @@ export const WidgetLoadingScreen = ({
     const setErrorMessage = useSetAtom(errorMessageAtom);
     const setLoadingMessage = useSetAtom(loadingMessageAtom);
     const setScreen = useSetAtom(screenAtom);
+    const setVapiSecrets = useSetAtom(vapiSecretsAtom);
 
     const contactSessionId = useAtomValue(contactSessionIdAtomFamily(organizationId || ""));
 
@@ -102,24 +103,24 @@ export const WidgetLoadingScreen = ({
         setLoadingMessage
     ]);
 
-    // Step 2: Load Widget Settings
-    const widgetSettings = useQuery(api.public.widgetSettings.getByOrganizationId, 
+    // Step 3: Load Widget Settings
+    const widgetSettings = useQuery(api.public.widgetSettings.getByOrganizationId,
         organizationId ? {
             organizationId,
         } : "skip",
     );
 
     useEffect(() => {
-      if (step !== "settings") {
-        return;
-      };
+        if (step !== "settings") {
+            return;
+        };
 
-      setLoadingMessage("Loading widget settings...");
+        setLoadingMessage("Loading widget settings...");
 
-      if (widgetSettings !== undefined) {
-        setWidgetSettings(widgetSettings);
-        setStep("done");
-      }
+        if (widgetSettings !== undefined) {
+            setWidgetSettings(widgetSettings);
+            setStep("vapi");
+        }
     }, [
         step,
         widgetSettings,
@@ -127,7 +128,38 @@ export const WidgetLoadingScreen = ({
         setWidgetSettings,
         setLoadingMessage,
     ])
-    
+
+    // Step 4: Load Vapi Secrets (Optional)
+    const getVapiSecrets = useAction(api.public.secrets.getVapiSecrets);
+    useEffect(() => {
+        if (step !== "vapi") {
+            return;
+        };
+
+        if (!organizationId) {
+            setErrorMessage("Organization ID is required");
+            setScreen("error");
+            return;
+        };
+
+        setLoadingMessage("Loading voice features...")
+        getVapiSecrets({ organizationId })
+            .then((secrets) => {
+                setVapiSecrets(secrets);
+                setStep("done")
+            })
+            .catch(() => {
+                setVapiSecrets(null);
+                setStep("done")
+            })
+    }, [
+        step,
+        organizationId,
+        getVapiSecrets,
+        setVapiSecrets,
+        setLoadingMessage,
+        setStep,
+    ]);
 
     useEffect(() => {
         if (step !== "done") {
